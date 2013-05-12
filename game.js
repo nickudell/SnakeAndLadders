@@ -19,7 +19,7 @@ var mouse = {
 var player;
 var stairs = [];
 var fruits = [];
-var COLOURS = ['FF0', '0F0', 'F0F'];
+var COLOURS = ['FF0', '0F0', '08F'];
 var DIRECTIONS = {
 	UP: "up",
 	DOWN: "down",
@@ -28,6 +28,38 @@ var DIRECTIONS = {
 };
 
 var score = 0;
+
+var level = [
+[132, 132, 132, 132, 160, 132, 132, 132, 132],
+[132, 160, 160, 160, 160, 160, 160, 160, 132],
+[132, 160, 160, 160, 160, 160, 160, 160, 132],
+[132, 160, 214, 160, 160, 160, 225, 160, 132],
+[160, 160, 160, 160, 193, 160, 160, 160, 160],
+[132, 160, 241, 160, 160, 160, 198, 160, 132],
+[132, 160, 160, 160, 160, 160, 160, 160, 132],
+[132, 160, 160, 160, 160, 160, 160, 160, 132],
+[132, 132, 132, 132, 160, 132, 132, 132, 132]
+];
+
+var walls = [];
+
+var freeCells = [];
+
+var spawn;
+
+var cellWidth = CANVAS_WIDTH / level[0].length;
+var cellHeight = CANVAS_HEIGHT / level.length;
+
+for (var x = 0; x < level[0].length; x++)
+{
+	for (var y = 0; y < level.length; y++)
+	{
+		else
+		{
+			decrypt(x * cellWidth, y * cellHeight, cellWidth, cellHeight, level[y][x]);
+		}
+	}
+}
 
 function opposite(direction)
 {
@@ -44,38 +76,54 @@ function opposite(direction)
 	}
 }
 
-function Player()
+function Player(spawnPoint)
 {
 	var head = {
-		x: 160,
-		y: 360,
-		z: 1,
+		x: spawnPoint.x,
+		y: spawnPoint.y,
+		z: spawnPoint.z,
 		width: 5,
 		height: 5
 	};
+	var offset = {
+		x: 0,
+		y: 0
+	};
+	var chunkSize = 5;
+	switch (spawnPoint.direction)
+	{
+		case DIRECTIONS.UP:
+			offset.y = -chunkSize
+		case DIRECTIONS.DOWN:
+			offset.y = chunkSize
+		case DIRECTIONS.LEFT:
+			offset.x = chunkSize
+		case DIRECTIONS.RIGHT:
+			offset.x = -chunkSize
+	}
 	var body = [
 	{
-		x: 160,
-		y: 365,
-		z: 1,
+		x: 160 + offset.x,
+		y: 365 + offset.y,
+		z: spawnPoint.z,
 		width: 5,
 		height: 5},
 	{
-		x: 160,
-		y: 370,
-		z: 1,
+		x: 160 + offset.x * 2,
+		y: 365 + offset.y * 2,
+		z: spawnPoint.z,
 		width: 5,
 		height: 5},
 	{
-		x: 160,
-		y: 375,
-		z: 1,
+		x: 160 + offset.x * 3,
+		y: 365 + offset.y * 3,
+		z: spawnPoint.z,
 		width: 5,
 		height: 5}];
 	var tail = {
-		x: 160,
-		y: 380,
-		z: 1,
+		x: 160 + offset.x * 4,
+		y: 365 + offset.y * 5,
+		z: spawnPoint.z,
 		width: 5,
 		height: 5
 	};
@@ -84,35 +132,31 @@ function Player()
 
 	var previousDirection = DIRECTIONS.UP;
 	this.direction = DIRECTIONS.UP;
-	this.speed = 0.05;
-	var chunkSize = 5;
+	this.speed = 0.1;
 
 	var that = this;
 
 	//draw the player as a blue square
-	this.draw = function()
+	this.draw = function(z)
 	{
 		context.save();
 		//draw in height order
-		for (var i = 0; i <= 2; i++)
+		context.fillStyle = COLOURS[z];
+		var boxes = body.filter(function(box)
 		{
-			context.fillStyle = COLOURS[i];
-			var boxes = body.filter(function(box)
-			{
-				return box.z == i;
-			});
-			if (tail.z == i)
-			{
-				context.fillRect(tail.x, tail.y, tail.width, tail.height);
-			}
-			boxes.forEach(function(box)
-			{
-				context.fillRect(box.x, box.y, box.width, box.height);
-			});
-			if (head.z == i)
-			{
-				context.fillRect(head.x, head.y, head.width, head.height);
-			}
+			return box.z == z;
+		});
+		if (tail.z == z)
+		{
+			context.fillRect(tail.x, tail.y, tail.width, tail.height);
+		}
+		boxes.forEach(function(box)
+		{
+			context.fillRect(box.x, box.y, box.width, box.height);
+		});
+		if (head.z == z)
+		{
+			context.fillRect(head.x, head.y, head.width, head.height);
 		}
 		context.restore();
 	};
@@ -146,6 +190,11 @@ function Player()
 		{
 			that.tailDirection = DIRECTIONS.UP;
 		}
+	}
+
+	function inBounds()
+	{
+		return head.x < CANVAS_WIDTH && head.y < CANVAS_HEIGHT && head.y > 0 && head.x > 0;
 	}
 
 	this.update = function(deltaTime)
@@ -237,7 +286,7 @@ function Player()
 				//Move the head up
 				head.y -= distance;
 				head.height += distance;
-				if (head.height > chunkSize)
+				while (head.height > chunkSize)
 				{
 					head.height -= chunkSize;
 					distance = head.height;
@@ -252,7 +301,7 @@ function Player()
 			case DIRECTIONS.DOWN:
 				//Move the head down
 				head.height += distance;
-				if (head.height > chunkSize)
+				while (head.height > chunkSize)
 				{
 					head.height -= chunkSize;
 					head.y += chunkSize;
@@ -269,7 +318,7 @@ function Player()
 				//Move the head left
 				head.x -= distance;
 				head.width += distance;
-				if (head.width > chunkSize)
+				while (head.width > chunkSize)
 				{
 					head.width -= chunkSize;
 					distance = head.width;
@@ -284,7 +333,7 @@ function Player()
 			case DIRECTIONS.RIGHT:
 				//Move the head right
 				head.width += distance;
-				if (head.width > chunkSize)
+				while (head.width > chunkSize)
 				{
 					head.width -= chunkSize;
 					head.x += chunkSize;
@@ -329,64 +378,79 @@ function Player()
 		{
 			stairs.forEach(function(stair)
 			{
-				if (that.collided(stair))
+				if (stair.collided(head))
 				{
-					if (head.z == stair.from && that.direction == stair.direction)
+					if (!stair.isCollided)
 					{
-						//Going to the to
-						head.z = stair.to;
+						stair.isCollided = true;
+						if (head.z == stair.from && that.direction == stair.direction)
+						{
+							//Going to the to
+							head.z = stair.to;
+						}
+						else if (head.z == stair.to && that.direction == opposite(stair.direction))
+						{
+							//Going to the from
+							head.z = stair.from;
+						}
+						else
+						{
+							//crash
+							console.log("Game Over");
+						}
 					}
-					else if (head.z == stair.to && that.direction == opposite(stair.direction))
+				}
+				else
+				{
+					if (stair.isCollided)
 					{
-						//Going to the from
-						head.z = stair.from;
-					}
-					else
-					{
-						//crash
-						console.log("Game Over");
+						stair.isCollided = false;
 					}
 				}
 			});
 			fruits.forEach(function(fruit)
 			{
-				if (that.collided(fruit))
+				if (fruit.collided(head))
 				{
 					fruit.kill();
+					fruits.push(new Fruit(10 + Math.floor(Math.random() * (CANVAS_WIDTH - 20)),
+					10 + Math.floor(Math.random() * (CANVAS_WIDTH - 20)),
+					Math.floor(Math.random() * 3)));
 					score += 100;
-					this.speed += 0.05;
-					//add extra segment to the snake
-					var x = body[body.length - 1].x;
-					var y = body[body.length - 1].y;
-					var z = body[body.length - 1].z;
-					var xDiff = body[body.length - 2].x - body[body.length - 1].x;
-					var yDiff = body[body.length - 2].y - body[body.length - 1].y;
-					//Normalize to +-1 or 0
-					if (xDiff < 0) xDiff = -1;
-					if (xDiff > 0) xDiff = 1;
-					if (yDiff < 0) yDiff = -1;
-					if (yDiff > 0) yDiff = 1;
-
-					x += chunkSize * xDiff;
-					y += chunkSize * yDiff;
-					body[body.length - 1].x = body[body.length - 2].x + chunkSize * xDiff;
-					body[body.length - 1].y = body[body.length - 2].y + chunkSize * yDiff;
-					body.push(
+					that.speed += 0.01;
+					for (var i = 1; i < 5; i++)
 					{
-						x: x,
-						y: y,
-						z: z,
+						//add extra segment to the snake
+						var x = body[body.length - 1].x;
+						var y = body[body.length - 1].y;
+						var z = body[body.length - 1].z;
+						var xDiff = body[body.length - 2].x - body[body.length - 1].x;
+						var yDiff = body[body.length - 2].y - body[body.length - 1].y;
+						//Normalize to +-1 or 0
+						if (xDiff < 0) xDiff = -1;
+						if (xDiff > 0) xDiff = 1;
+						if (yDiff < 0) yDiff = -1;
+						if (yDiff > 0) yDiff = 1;
 
-					});
+						x += chunkSize * xDiff;
+						y += chunkSize * yDiff;
+						body[body.length - 1].x = body[body.length - 2].x + chunkSize * xDiff;
+						body[body.length - 1].y = body[body.length - 2].y + chunkSize * yDiff;
+						body.push(
+						{
+							x: x,
+							y: y,
+							z: z,
+
+						});
+					}
 				}
 			});
 		}
-	}
-
-	this.collided = function(other)
-	{
-
-		return head.z == other.z && head.x + head.width >= other.x && head.x <= other.x + other.width && head.y + head.height >= other.y && head.y <= other.y + other.height;
+		if (!inBounds())
+		{
+			console.log("Game over");
+		}
 	}
 
 	this.selfCollided = function()
@@ -406,43 +470,124 @@ function Stair(x, y, from, to, direction, bidirectional)
 	this.y = y || 0;
 	this.width = 16;
 	this.height = 16;
-	this.from = from || 1;
-	this.to = to || 2;
+	this.from = from || 0;
+	this.to = to || 0;
 	this.direction = direction || DIRECTIONS.LEFT; //which way you enter the stair to go from from to to
 	this.bidirectional = bidirectional || false;
-	this.collided = false; //set to true while the snake head is inside the stair to prevent bogus game overs
-	var gradient;
-	switch (direction)
+	this.isCollided = false; //set to true while the snake head is inside the stair to prevent bogus game overs
+
+	this.draw = function(z)
 	{
-		case DIRECTIONS.UP:
-			gradient = context.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
-			gradient.addColorStop(0, COLOURS[to]);
-			gradient.addColorStop(1, COLOURS[from]);
-			break;
-		case DIRECTIONS.DOWN:
-			gradient = context.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
-			gradient.addColorStop(0, COLOURS[from]);
-			gradient.addColorStop(1, COLOURS[to]);
-			break;
-		case DIRECTIONS.LEFT:
-			gradient = context.createLinearGradient(this.x, this.y, this.x + this.width, this.y);
-			gradient.addColorStop(0, COLOURS[to]);
-			gradient.addColorStop(1, COLOURS[from]);
-			break;
-		case DIRECTIONS.RIGHT:
-			gradient = context.createLinearGradient(this.x, this.y, this.x + this.width, this.y);
-			gradient.addColorStop(0, COLOURS[from]);
-			gradient.addColorStop(1, COLOURS[to]);
-			break;
+		context.save();
+		if (z == this.from || z == this.to)
+		{
+			context.fillStyle = COLOURS[from];
+			context.shadowColor = COLOURS[from];
+			context.shadowBlur = 20;
+			switch (this.direction)
+			{
+				case DIRECTIONS.UP:
+					context.shadowOffsetY = 5;
+					context.fillRect(this.x, this.y + this.height / 2, this.width, this.height / 2);
+					context.fillStyle = COLOURS[to];
+					context.shadowColor = COLOURS[to];
+					context.shadowOffsetY = -5;
+					context.fillRect(this.x, this.y, this.width, this.height / 2);
+					break;
+				case DIRECTIONS.DOWN:
+					context.shadowOffsetY = -5;
+					context.fillRect(this.x, this.y, this.width, this.height / 2);
+					context.fillStyle = COLOURS[to];
+					context.shadowColor = COLOURS[to];
+					context.shadowOffsetY = 5;
+					context.fillRect(this.x, this.y + this.height / 2, this.width, this.height / 2);
+					break;
+				case DIRECTIONS.LEFT:
+					context.shadowOffsetX = 5;
+					context.fillRect(this.x + this.width / 2, this.y, this.width / 2, this.height);
+					context.fillStyle = COLOURS[to];
+					context.shadowColor = COLOURS[to];
+					context.shadowOffsetX = -5;
+					context.fillRect(this.x, this.y, this.width / 2, this.height);
+					break;
+				case DIRECTIONS.RIGHT:
+					context.shadowOffsetX = -5;
+					context.fillRect(this.x, this.y, this.width / 2, this.height);
+					context.fillStyle = COLOURS[to];
+					context.shadowColor = COLOURS[to];
+					context.shadowOffsetX = 5;
+					context.fillRect(this.x + this.width / 2, this.y, this.width / 2, this.height);
+					break;
+			}
+		}
+		context.restore();
 	}
+	this.collided = function(other)
+	{
+		return (other.z == to || other.z == from) && other.x + other.width > this.x + this.width / 4 && other.x < this.x + 3 * this.width / 4 && other.y + other.height > this.y + this.height / 4 && other.y < this.y + 3 * this.height / 4;
+	}
+}
+
+function Wall(x, y, width, height, level)
+{
+	this.x = x || 0;
+	this.y = y || 0;
+	this.width = width || 0;
+	this.height = height || 0;
+	this.z = level || 0;
+	this.update = function(deltaTime)
+	{
+
+		}
 	this.draw = function()
 	{
 		context.save();
-		context.fillStyle = gradient;
-		context.shadowColor = gradient;
+		context.fillStyle = COLOURS[this.z];
+		context.shadowColor = COLOURS[this.z];
 		context.shadowBlur = 20;
 		context.fillRect(this.x, this.y, this.width, this.height);
 		context.restore();
+	}
+
+	this.collided = function(other)
+	{
+		return this.z == other.z && this.x + this.width >= other.x && this.x <= other.x + other.width && this.y + this.height >= other.y && this.y <= other.y + other.height;;;
+	}
+
+}
+
+function SpawnPoint(x, y, direction, level)
+{
+	this.x = x || 0;
+	this.y = y || 0;
+	this.z = level || 0;
+	this.direction = direction || DIRECTIONS.UP;
+}
+
+function GreatWall(x, y, width, height)
+{
+	this.x = x || 0;
+	this.y = y || 0;
+	this.width = width || 0;
+	this.height = height || 0;
+	this.colour = 'FFF';
+	this.update = function(deltaTime)
+	{
+
+		}
+	this.draw = function()
+	{
+		context.save();
+		context.fillStyle = this.colour;
+		context.shadowColor = this.colour;
+		context.shadowBlur = 20;
+		context.fillRect(this.x, this.y, this.width, this.height);
+		context.restore();
+	}
+
+	this.collided = function(other)
+	{
+		return this.x + this.width >= other.x && this.x <= other.x + other.width && this.y + this.height >= other.y && this.y <= other.y + other.height;;;
 	}
 }
 
@@ -450,7 +595,7 @@ function Fruit(x, y, z)
 {
 	this.x = x || 0;
 	this.y = y || 0;
-	this.z = z || 1;
+	this.z = z || 0;
 	this.width = 10;
 	this.height = 10;
 
@@ -464,8 +609,8 @@ function Fruit(x, y, z)
 	this.draw = function()
 	{
 		context.save();
-		context.fillStyle = COLOURS[z];
-		context.shadowColor = COLOURS[z];
+		context.fillStyle = COLOURS[this.z];
+		context.shadowColor = COLOURS[this.z];
 		context.shadowBlur = 20;
 		context.fillRect(this.x, this.y, this.width, this.height);
 		context.restore();
@@ -475,6 +620,30 @@ function Fruit(x, y, z)
 	{
 		active = false;
 	}
+
+	this.collided = function(other)
+	{
+		return this.z == other.z && this.x + this.width >= other.x && this.x <= other.x + other.width && this.y + this.height >= other.y && this.y <= other.y + other.height;;;
+	}
+}
+
+function randomDirection()
+{
+	var dir = Math.floor(Math.random() * 4);
+	switch (dir)
+	{
+		case 0:
+			return DIRECTIONS.UP;
+		case 1:
+			return DIRECTIONS.DOWN;
+		case 2:
+			return DIRECTIONS.LEFT;
+		case 3:
+			return DIRECTIONS.RIGHT;
+	}
+	//error state
+	console.log("Error picking direction.");
+	return DIRECTIONS.UP;
 }
 
 //Initialize variables and start the game
@@ -503,16 +672,11 @@ var Init = function()
 
 	canvases.appendTo('body');
 
-	player = new Player();
+	player = new Player(spawnPoint);
 
-	stairs = [new Stair(100, 100, 1, 2, DIRECTIONS.RIGHT, true)];
-
-	for (var i = 0; i < 5; i++)
-	{
-		fruits.push(new Fruit(10 + Math.floor(Math.random() * (CANVAS_WIDTH - 20)),
-		10 + Math.floor(Math.random() * (CANVAS_WIDTH - 20)),
-		Math.floor(Math.random() * 4)));
-	}
+	fruits.push(new Fruit(10 + Math.floor(Math.random() * (CANVAS_WIDTH - 20)),
+	10 + Math.floor(Math.random() * (CANVAS_WIDTH - 20)),
+	Math.floor(Math.random() * 3)));
 
 	//Start game loop
 	Tick();
@@ -557,23 +721,58 @@ var Clear = function(colour)
 var Update = function(deltaTime)
 {
 	player.update(deltaTime);
-};
-
-var Draw = function()
-{
-	player.draw();
-	stairs.forEach(function(s)
-	{
-		s.draw();
-	});
-	fruits.forEach(function(f)
-	{
-		f.draw();
-	});
 	fruits = fruits.filter(function(f)
 	{
 		return f.isActive();
 	});
+};
+
+var Draw = function()
+{
+	for (var z = 0; z < 3; z++)
+	{
+		var levelFruits = fruits.filter(function(f)
+		{
+			return f.z == z;
+		});
+
+		levelFruits.forEach(function(f)
+		{
+			f.draw();
+		});
+
+		player.draw(z);
+
+		stairs.forEach(function(s)
+		{
+			s.draw(z);
+		});
+
+		var levelWalls = walls.filter(function(w)
+		{
+			if (w.z)
+			{
+				return w.z == z;
+			}
+			return false;
+		});
+		levelWalls.forEach(function(w)
+		{
+			w.draw();
+		});
+
+
+	}
+
+	var greatWalls = walls.filter(function(w)
+	{
+		return !w.z
+	});
+	greatWalls.forEach(function(w)
+	{
+		w.draw();
+	});
+
 	context.save();
 	context.globalCompositeOperation = "lighter";
 	context.fillStyle = 'FFF';
